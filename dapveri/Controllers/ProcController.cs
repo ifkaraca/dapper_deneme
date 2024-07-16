@@ -9,28 +9,26 @@ namespace dapveri.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class KullaniciController : ControllerBase
+    public class ProcController : ControllerBase
     {
         private readonly string conncetionString;
-        public KullaniciController(IConfiguration configuration)
+        public ProcController(IConfiguration configuration)
         {
             conncetionString = configuration.GetConnectionString("DefaultConnection")!;
         }
-
-       
 
         [HttpGet]
         public IActionResult KullaniciListeleme()
         {
             List<LiKullanici> kullanicis = new List<LiKullanici>();
-            
+
             try
             {
                 using (var connection = new SqlConnection(conncetionString))
                 {
                     connection.Open();
 
-                    string sql = "select * from kullanici_tbl";
+                    string sql = "exec TumGetir";
                     var data = connection.Query<LiKullanici>(sql);
                     kullanicis = data.ToList();
                 }
@@ -53,9 +51,9 @@ namespace dapveri.Controllers
                 {
                     connection.Open();
 
-                    string sql = "select * from kullanici_tbl where id=@id";
-                    var kullanici = connection.QuerySingle<LiKullanici>(sql, new {id = id});
-                    if(kullanici !=null)
+                    string sql = "exec GetirId @id";
+                    var kullanici = connection.QuerySingle<LiKullanici>(sql, new { id = id });
+                    if (kullanici != null)
                     {
                         return Ok(kullanici);
                     }
@@ -81,10 +79,7 @@ namespace dapveri.Controllers
                 {
                     connection.Open();
 
-                    string sql = "insert into kullanici_tbl" +
-                        "(kullanici_adi,kullanici_soyad,kullanici_tlf,kullanici_sehir)" +
-                        "OUTPUT INSERTED.*" +
-                        "values (@kullanici_adi,@kullanici_soyad,@kullanici_tlf,@kullanici_sehir)";
+                    string sql = "exec InsertKullanici  @kullanici_adi,@kullanici_soyad,@kullanici_tlf,@kullanici_sehir";
 
                     var kullanici = new LiKullanici()
                     {
@@ -94,11 +89,12 @@ namespace dapveri.Controllers
                         kullanici_sehir = kullaniciDto.kullanici_sehir,
                     };
 
-                    var newliKullanici = connection.QuerySingleOrDefault<LiKullanici>(sql, kullanici);
-                    if (newliKullanici != null)
-                    {
-                        return Ok();
-                    }
+                    
+            int rowsAffected = connection.Execute(sql, kullanici);
+            if (rowsAffected > 0)
+            {
+                return Ok();
+            }
                 }
             }
             catch (Exception ex)
@@ -109,7 +105,7 @@ namespace dapveri.Controllers
         }
 
         [HttpPut("{id}")]
-        public IActionResult Guncelle(int id,KullaniciDto kullaniciDto)
+        public IActionResult Guncelle(int id, KullaniciDto kullaniciDto)
         {
             try
             {
@@ -117,24 +113,24 @@ namespace dapveri.Controllers
                 {
                     connection.Open();
 
-                    string sql = "Update kullanici_tbl set kullanici_adi=@kullanici_adi, kullanici_soyad=@kullanici_soyad, kullanici_tlf=@kullanici_tlf, " +
-                        "kullanici_sehir=@kullanici_sehir where id=@id";
+                    string sql = "exec DuzenleTum @kullanici_id, @kullanici_adi, @kullanici_soyad, @kullanici_tlf, @kullanici_sehir";
 
-                    var kullanici = new LiKullanici()
+                    var parameters = new
                     {
-                        id = id,
+                        kullanici_id = id,
                         kullanici_adi = kullaniciDto.kullanici_adi,
                         kullanici_soyad = kullaniciDto.kullanici_soyad,
                         kullanici_tlf = kullaniciDto.kullanici_tlf,
                         kullanici_sehir = kullaniciDto.kullanici_sehir,
                     };
 
-                    int count = connection.Execute(sql, kullanici);
+                    int count = connection.Execute(sql, parameters);
                     if (count < 1)
                     {
                         return NotFound();
                     }
-                    return KullaniciListeleme(id);
+                    var updatedUser = connection.QuerySingle<LiKullanici>("exec GetirId @id", new { id });
+                    return Ok(updatedUser);
                 }
             }
             catch (Exception ex)
@@ -143,6 +139,7 @@ namespace dapveri.Controllers
                 return BadRequest();
             }
         }
+
         [HttpDelete("{id}")]
         public IActionResult DeleteKullanici(int id)
         {
@@ -152,7 +149,7 @@ namespace dapveri.Controllers
                 {
                     connection.Open();
 
-                    string sql = "delete from kullanici_tbl where id=@id";
+                    string sql = "exec TumSil @id";
                     int count = connection.Execute(sql, new { id = id });
                     if (count < 1)
                     {
